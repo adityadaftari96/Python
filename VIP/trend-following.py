@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
-from HJB_Solver_v2 import get_thresholds
+from HJB_Solver import get_thresholds
 import warnings
 warnings.filterwarnings('ignore')
 
