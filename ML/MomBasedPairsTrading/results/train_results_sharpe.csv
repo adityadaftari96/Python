@@ -1,0 +1,16 @@
+,Hyperparameters,CV1Score,CV2Score,CV3Score,CV4Score,AvgScore,DimRedMethod,DimRedParams,ClusterMethod,ClusterParams
+0,"('isomap', {'n_components': 4}, 'agglomerative', {'dt': 4})",-0.1071,0.8202,-0.0732,0.0081,0.162,isomap,{'n_components': 4},agglomerative,{'dt': 4}
+1,"('isomap', {'n_components': 3}, 'dbscan', {'dt': 8, 'min_samples': 5})",-1.0205,1.5408,1.3116,0.1082,0.48502500000000004,isomap,{'n_components': 3},dbscan,"{'dt': 8, 'min_samples': 5}"
+2,"('isomap', {'n_components': 18}, 'hdbscan', {'min_cluster_size': 2})",-0.5205,0.4629,0.6046,0.5142,0.2653,isomap,{'n_components': 18},hdbscan,{'min_cluster_size': 2}
+3,"('kernel_pca', {'kernel': 'poly', 'n_components': 7}, 'agglomerative', {'dt': 10})",0.2494,0.3724,0.5911,0.2508,0.36592499999999994,kernel_pca,"{'kernel': 'poly', 'n_components': 7}",agglomerative,{'dt': 10}
+4,"('kernel_pca', {'kernel': 'rbf', 'n_components': 18}, 'dbscan', {'dt': 1, 'min_samples': 9})",-0.7107,1.6676,1.1108,0.1348,0.5506249999999999,kernel_pca,"{'kernel': 'rbf', 'n_components': 18}",dbscan,"{'dt': 1, 'min_samples': 9}"
+5,"('kernel_pca', {'kernel': 'rbf', 'n_components': 2}, 'hdbscan', {'min_cluster_size': 3})",-0.3124,0.8556,0.5628,0.0771,0.29577499999999995,kernel_pca,"{'kernel': 'rbf', 'n_components': 2}",hdbscan,{'min_cluster_size': 3}
+6,"('mds', {'n_components': 6}, 'agglomerative', {'dt': 6})",0.1106,0.2249,0.3812,0.0662,0.195725,mds,{'n_components': 6},agglomerative,{'dt': 6}
+7,"('mds', {'n_components': 4}, 'dbscan', {'dt': 8, 'min_samples': 12})",-0.5907,1.5606,1.1967,0.3342,0.6252,mds,{'n_components': 4},dbscan,"{'dt': 8, 'min_samples': 12}"
+8,"('mds', {'n_components': 10}, 'hdbscan', {'min_cluster_size': 2})",-0.3231,0.458,0.7108,0.121,0.241675,mds,{'n_components': 10},hdbscan,{'min_cluster_size': 2}
+9,"('pca', {'explained_var': 0.99}, 'agglomerative', {'dt': 19})",-0.3521,0.1814,0.2968,0.2543,0.0951,pca,{'explained_var': 0.99},agglomerative,{'dt': 19}
+10,"('pca', {'explained_var': 0.99}, 'dbscan', {'dt': 11, 'min_samples': 19})",-0.4147,1.1986,1.0204,0.4603,0.56615,pca,{'explained_var': 0.99},dbscan,"{'dt': 11, 'min_samples': 19}"
+11,"('pca', {'explained_var': 0.99}, 'hdbscan', {'min_cluster_size': 2})",-0.3719,0.4796,0.6728,-0.3399,0.11015,pca,{'explained_var': 0.99},hdbscan,{'min_cluster_size': 2}
+12,"('t_sne', {'n_components': 15}, 'agglomerative', {'dt': 4})",0.3254,0.0022,-0.3006,0.8263,0.21332500000000001,t_sne,{'n_components': 15},agglomerative,{'dt': 4}
+13,"('t_sne', {'n_components': 6}, 'dbscan', {'dt': 4, 'min_samples': 2})",-0.1723,0.4735,0.6763,-0.1987,0.1947,t_sne,{'n_components': 6},dbscan,"{'dt': 4, 'min_samples': 2}"
+14,"('t_sne', {'n_components': 4}, 'hdbscan', {'min_cluster_size': 5})",0.493,0.5433,0.287,-0.0256,0.32442499999999996,t_sne,{'n_components': 4},hdbscan,{'min_cluster_size': 5}
