@@ -3,7 +3,7 @@
 # where 'i' corresponds to the initial state - 0 or 1,
 # h corresponds to the space variable value, h = i*dp
 # n corresponds to the time variable value, n = j*dt.
-# u0 and u1 is equivalent to V0 and V1 in the paper.
+# u0 and u1 is equivalent to V0 and V1 in the paper. u(t,p) = V(T-t,p)
 # It is the expected value of the trend following trading strategy with initial state 0 and 1 respectively,
 # corresponding to flat and long initial positions.
 # B0 and B1 correspond to the right hand side vector in the finite difference scheme for state i = 0 and 1 respectively.
@@ -12,7 +12,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from TDMA_Solver import TDMA_solver
+from TDMA_Solver import *
 
 ## Market Parameters used in paper, DO NOT CHANGE.
 lambda1 = 0.36
@@ -36,10 +36,33 @@ T = 1
 # r = 4.51
 # T = 1
 
+## Market Parameters for Case a in paper
+# lambda1 = 0.2
+# lambda2 = 30
+# mu1 = 0.15
+# mu2 = 0.10
+# sigma = 0.20
+# Kb = 0.0006
+# Ks = 0.0006
+# r = 0.085
+# T = 1
+
+## Market Parameters for Case b in paper
+# lambda1 = 20
+# lambda2 = 1
+# mu1 = 0.20
+# mu2 = 0.00
+# sigma = 0.45
+# Kb = 0.05
+# Ks = 0.05
+# r = 0.08
+# T = 1
+
 ## Grid Parameters
 R = 1  # space variable (probability in this case) upper limit, p belongs to (0,1)
 N = 600  # number of divisions of the time period T
 M = N  # number of divisions of the space R
+forward_diff = True
 
 ttm_arr = np.full((N + 1, 1), np.NaN)  # time to maturity array
 pb_boundary_arr = np.full((N + 1, 1), np.NaN)  # buy threshold array
@@ -58,9 +81,17 @@ factor1 = dt * ((mu1 - mu2) * i_rng * (1 - i_rng * dp) / sigma) ** 2
 factor2 = (dt / dp) * ((lambda1 + lambda2) * i_rng * dp - lambda2)
 
 # three Diagonal vectors/arrays for forming the tri-diagonal matrix in the finite difference scheme
-a = -0.5 * factor1
-b = 1 + factor1 - factor2
-c = -0.5 * factor1 + factor2
+
+# based on forward difference in space variable
+if forward_diff:
+    a = -0.5 * factor1
+    b = 1 + factor1 - factor2
+    c = -0.5 * factor1 + factor2
+# based on backward difference in space variable
+else:
+    a = (-0.5 * factor1) - factor2
+    b = 1 + factor1 + factor2
+    c = -0.5 * factor1
 
 p = i_rng * dp
 f_p = (mu1 - mu2) * p + mu2 - 0.5 * sigma ** 2  # f(p) as shown in the paper
@@ -73,6 +104,7 @@ u1_i_n = np.ones(M - 1) * np.log(1 - Ks)
 
 ## Loop for solving the finite difference scheme iteratively starting from the maturity
 for n in range(1, N + 1):
+    print("time step={0}".format(n))
     u0_0 = n * dt * (r + lambda2)  # boundary value for u0 near p=0
     u1_0 = n * dt * (f_p[0] + lambda2) + np.log(1 - Ks)  # boundary value for u1 near p=0
 
@@ -124,7 +156,7 @@ plt.figure()
 plt.plot(time_arr, pb_boundary_arr, time_arr, ps_boundary_arr)
 plt.legend(['Buy threshold', 'Sell threshold'])
 plt.xlim([0.0, 1.0])
-# plt.ylim([0.7, 1.0])
+plt.ylim([0.7, 1.0])
 plt.title('Optimal Buy and Sell Boundaries')
 plt.ylabel('p')
 plt.xlabel('t')
