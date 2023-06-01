@@ -15,26 +15,28 @@ import matplotlib.pyplot as plt
 from TDMA_Solver import *
 
 ## Market Parameters used in paper, DO NOT CHANGE.
-lambda1 = 0.36
-lambda2 = 2.53
-mu1 = 0.18
-mu2 = -0.77
-sigma = 0.184
-Kb = 0.001
-Ks = 0.001
-r = 0.0679
-T = 1
-
-## Market Parameters for adhoc testing
-# lambda1 = 1.38
-# lambda2 = 1.99
-# mu1 = 0.39
-# mu2 = -0.43
-# sigma = 0.006
+# lambda1 = 0.36
+# lambda2 = 2.53
+# mu1 = 0.18
+# mu2 = -0.77
+# sigma = 0.184
 # Kb = 0.001
 # Ks = 0.001
-# r = 4.51
+# r = 0.0679
 # T = 1
+
+## Market Parameters for adhoc testing
+params = {'lambda1': 0.49265939597315433, 'lambda2': 3.5492957746478875, 'mu1': 0.2343899537377726,
+          'mu2': -0.594584068642849, 'sigma': 0.17146347380803154, 'K': 0.001, 'rho': 0.07530000209808349}
+lambda1 = params['lambda1']
+lambda2 = params['lambda2']
+mu1 = params['mu1']
+mu2 = params['mu2']
+sigma = params['sigma']
+Kb = params['K']
+Ks = params['K']
+r = params['rho']
+T = 1
 
 ## Market Parameters for Case a in paper
 # lambda1 = 0.2
@@ -62,7 +64,8 @@ T = 1
 R = 1  # space variable (probability in this case) upper limit, p belongs to (0,1)
 N = 600  # number of divisions of the time period T
 M = N  # number of divisions of the space R
-forward_diff = True
+forward_diff = False
+backward_diff = False
 
 ttm_arr = np.full((N + 1, 1), np.NaN)  # time to maturity array
 pb_boundary_arr = np.full((N + 1, 1), np.NaN)  # buy threshold array
@@ -70,31 +73,37 @@ ps_boundary_arr = np.full((N + 1, 1), np.NaN)  # sell threshold array
 
 ttm_arr[0] = 0
 pb_boundary_arr[0] = 1
-# ps_boundary_arr[0] = 1
-ps_boundary_arr[0] = (r - mu2 + 0.5 * (sigma ** 2)) / (mu1 - mu2)
+ps_boundary_arr[0] = 1
+# ps_boundary_arr[0] = (r - mu2 + 0.5 * (sigma ** 2)) / (mu1 - mu2)
 
 dt = T / N  # N*dt = T
 dp = R / M  # M*dp = R
 i_rng = np.arange(1, M)
 
-factor1 = dt * ((mu1 - mu2) * i_rng * (1 - i_rng * dp) / sigma) ** 2
-factor2 = (dt / dp) * ((lambda1 + lambda2) * i_rng * dp - lambda2)
+p = i_rng * dp
+f_p = (mu1 - mu2) * p + mu2 - 0.5 * sigma ** 2  # f(p) as shown in the paper
+
+factor1 = dt * ((mu1 - mu2) * p * (1 - p) / (sigma * dp)) ** 2
+factor2 = (dt / dp) * ((lambda1 + lambda2) * p - lambda2)
 
 # three Diagonal vectors/arrays for forming the tri-diagonal matrix in the finite difference scheme
-
-# based on forward difference in space variable
 if forward_diff:
+    # based on forward difference in space variable
     a = -0.5 * factor1
     b = 1 + factor1 - factor2
     c = -0.5 * factor1 + factor2
-# based on backward difference in space variable
-else:
+elif backward_diff:
+    # based on backward difference in space variable
     a = (-0.5 * factor1) - factor2
     b = 1 + factor1 + factor2
     c = -0.5 * factor1
-
-p = i_rng * dp
-f_p = (mu1 - mu2) * p + mu2 - 0.5 * sigma ** 2  # f(p) as shown in the paper
+else:
+    # based on mixed forward and backward difference in space variable
+    # for p <= lambda2/(lambda1 + lambda2), use forward difference.
+    # for p > lambda2/(lambda1 + lambda2), use backward difference.
+    a = np.where(p <= lambda2/(lambda1 + lambda2), -0.5 * factor1, (-0.5 * factor1) - factor2)
+    b = np.where(p <= lambda2 / (lambda1 + lambda2), 1 + factor1 - factor2, 1 + factor1 + factor2)
+    c = np.where(p <= lambda2 / (lambda1 + lambda2), -0.5 * factor1 + factor2, -0.5 * factor1)
 
 # u0 and u1 at state i and n=0. (or Time = T - n*dt = T)
 # They are arrays of size M-1, even though the space is divided by M creating M+1 divisions.
@@ -156,8 +165,11 @@ plt.figure()
 plt.plot(time_arr, pb_boundary_arr, time_arr, ps_boundary_arr)
 plt.legend(['Buy threshold', 'Sell threshold'])
 plt.xlim([0.0, 1.0])
-plt.ylim([0.7, 1.0])
+plt.ylim([0.00, 1.00])
+# tick_values = np.arange(0.85, 1.05, 0.05)
+# plt.yticks(tick_values)
 plt.title('Optimal Buy and Sell Boundaries')
 plt.ylabel('p')
 plt.xlabel('t')
 plt.show()
+
