@@ -1,12 +1,14 @@
-# Finite Difference for optimal trend following trading rules
-# It is of the form A * ui_h_n = Bi_h_n,
-# where 'i' corresponds to the initial state - 0 or 1,
-# h corresponds to the space variable value, h = i*dp
-# n corresponds to the time variable value, n = j*dt.
-# z = V1 - V0; u(t,p) = Z(T-t,p)
-# It is the expected value of the difference of trend following trading strategy with initial state 1 and 0,
-# corresponding to long and flat initial positions.
-# B is the right hand side vector in the finite difference scheme.
+"""Version v2.0 does not use V0 and V1, but uses a single value Z = V1 - V0 to find the solution.
+
+Finite Difference for optimal trend following trading rules
+It is of the form A * ui_h_n = Bi_h_n,
+where 'i' corresponds to the initial state - 0 or 1,
+h corresponds to the space variable value, h = i*dp
+n corresponds to the time variable value, n = j*dt.
+z = V1 - V0; u(t,p) = Z(T-t,p)
+It is the expected value of the difference of trend following trading strategy with initial state 1 and 0,
+corresponding to long and flat initial positions.
+B is the right hand side vector in the finite difference scheme."""
 
 
 import numpy as np

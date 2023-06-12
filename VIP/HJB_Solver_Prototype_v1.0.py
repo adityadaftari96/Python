@@ -1,12 +1,15 @@
-# Finite Difference for optimal trend following trading rules
-# It is of the form A * ui_h_n = Bi_h_n,
-# where 'i' corresponds to the initial state - 0 or 1,
-# h corresponds to the space variable value, h = i*dp
-# n corresponds to the time variable value, n = j*dt.
-# u0 and u1 is equivalent to V0 and V1 in the paper. u(t,p) = V(T-t,p)
-# It is the expected value of the trend following trading strategy with initial state 0 and 1 respectively,
-# corresponding to flat and long initial positions.
-# B0 and B1 correspond to the right hand side vector in the finite difference scheme for state i = 0 and 1 respectively.
+"""This is v1.0 version. It ignores the boundary value at p=0 and p=1 in the solution.
+It only considers the solution as p -> 0 and p -> 1.
+
+Finite Difference for optimal trend following trading rules
+It is of the form A * ui_h_n = Bi_h_n,
+where 'i' corresponds to the initial state - 0 or 1,
+h corresponds to the space variable value, h = i*dp
+n corresponds to the time variable value, n = j*dt.
+u0 and u1 is equivalent to V0 and V1 in the paper. u(t,p) = V(T-t,p)
+It is the expected value of the trend following trading strategy with initial state 0 and 1 respectively,
+corresponding to flat and long initial positions.
+B0 and B1 correspond to the right hand side vector in the finite difference scheme for state i = 0 and 1 respectively."""
 
 
 import numpy as np
@@ -26,28 +29,28 @@ from TDMA_Solver import *
 # T = 1
 
 ## Market Parameters for adhoc testing
-params = {'lambda1': 0.49265939597315433, 'lambda2': 3.5492957746478875, 'mu1': 0.2343899537377726,
-          'mu2': -0.594584068642849, 'sigma': 0.17146347380803154, 'K': 0.001, 'rho': 0.07530000209808349}
-lambda1 = params['lambda1']
-lambda2 = params['lambda2']
-mu1 = params['mu1']
-mu2 = params['mu2']
-sigma = params['sigma']
-Kb = params['K']
-Ks = params['K']
-r = params['rho']
-T = 1
+# params = {'lambda1': 0.36, 'lambda2': 2.53, 'mu1': 0.18,
+#           'mu2': -0.77, 'sigma': 0.184, 'K': 0.001, 'rho': 0.072}
+# lambda1 = params['lambda1']
+# lambda2 = params['lambda2']
+# mu1 = params['mu1']
+# mu2 = params['mu2']
+# sigma = params['sigma']
+# Kb = params['K']
+# Ks = params['K']
+# r = params['rho']
+# T = 1
 
 ## Market Parameters for Case a in paper
-# lambda1 = 0.2
-# lambda2 = 30
-# mu1 = 0.15
-# mu2 = 0.10
-# sigma = 0.20
-# Kb = 0.0006
-# Ks = 0.0006
-# r = 0.085
-# T = 1
+lambda1 = 0.2
+lambda2 = 30
+mu1 = 0.15
+mu2 = 0.10
+sigma = 0.20
+Kb = 0.0006
+Ks = 0.0006
+r = 0.085
+T = 1
 
 ## Market Parameters for Case b in paper
 # lambda1 = 20
@@ -62,8 +65,8 @@ T = 1
 
 ## Grid Parameters
 R = 1  # space variable (probability in this case) upper limit, p belongs to (0,1)
-N = 600  # number of divisions of the time period T
-M = N  # number of divisions of the space R
+N = 4000  # number of divisions of the time period T
+M = 800  # number of divisions of the space R
 forward_diff = False
 backward_diff = False
 
@@ -101,7 +104,7 @@ else:
     # based on mixed forward and backward difference in space variable
     # for p <= lambda2/(lambda1 + lambda2), use forward difference.
     # for p > lambda2/(lambda1 + lambda2), use backward difference.
-    a = np.where(p <= lambda2/(lambda1 + lambda2), -0.5 * factor1, (-0.5 * factor1) - factor2)
+    a = np.where(p <= lambda2 / (lambda1 + lambda2), -0.5 * factor1, (-0.5 * factor1) - factor2)
     b = np.where(p <= lambda2 / (lambda1 + lambda2), 1 + factor1 - factor2, 1 + factor1 + factor2)
     c = np.where(p <= lambda2 / (lambda1 + lambda2), -0.5 * factor1 + factor2, -0.5 * factor1)
 
@@ -159,13 +162,15 @@ for n in range(1, N + 1):
     else:
         ps_boundary_arr[n] = p[np.where(d1 == 1)[0][0]]
 
+print("Ps={:.10f}, Pb={:.10f}".format(ps_boundary_arr[-1][0], pb_boundary_arr[-1][0]))
+
 time_arr = np.flip(ttm_arr)
 
 plt.figure()
 plt.plot(time_arr, pb_boundary_arr, time_arr, ps_boundary_arr)
 plt.legend(['Buy threshold', 'Sell threshold'])
 plt.xlim([0.0, 1.0])
-plt.ylim([0.00, 1.00])
+plt.ylim([0.0, 1.0])
 # tick_values = np.arange(0.85, 1.05, 0.05)
 # plt.yticks(tick_values)
 plt.title('Optimal Buy and Sell Boundaries')
