@@ -5,36 +5,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import mode
 from copy import deepcopy
+import TDMA_Solver
 
 
-def TDMA_solver(a, b, c, d):
-    # a, b, c are the column vectors for the compressed tri-diagonal matrix, d is the right vector
-    a_ = deepcopy(a)
-    b_ = deepcopy(b)
-    c_ = deepcopy(c)
-    d_ = deepcopy(d)
-    n = len(d_)
+def get_thresholds(params, m, n, plot=False):
 
-    c_[0] = c_[0] / b_[0]
-    d_[0] = d_[0] / b_[0]
-
-    for i in range(1, n - 1):
-        temp_var = b_[i] - (a_[i] * c_[i - 1])
-        c_[i] = c_[i] / temp_var
-        d_[i] = (d_[i] - (a_[i] * d_[i - 1])) / temp_var
-    d_[n - 1] = (d_[n - 1] - (a_[n - 1] * d_[n - 2])) / (b_[n - 1] - (a_[n - 1] * c_[n - 2]))
-
-    ans = np.zeros(n)  # solution of the simultaneous equations
-    ans[n - 1] = d_[n - 1]
-    for i in range(n - 2, -1, -1):
-        ans[i] = d_[i] - (c_[i] * ans[i + 1])
-
-    return ans
-
-def get_thresholds(params):
-
-
-    # # Market Parameters
+    ## Market Parameters
     lambda1 = params['lambda1']
     lambda2 = params['lambda2']
     mu1 = params['mu1']
@@ -43,34 +19,12 @@ def get_thresholds(params):
     Kb = params['K']
     Ks = params['K']
     r = params['rho']
-    T = 1
-
-    ## Market Parameters for Case a in paper
-    # lambda1 = 0.2
-    # lambda2 = 30
-    # mu1 = 0.15
-    # mu2 = 0.10
-    # sigma = 0.20
-    # Kb = 0.0006
-    # Ks = 0.0006
-    # r = 0.085
-    # T = 1
-
-    ## Market Parameters for Case b in paper
-    # lambda1 = 20
-    # lambda2 = 1
-    # mu1 = 0.20
-    # mu2 = 0.00
-    # sigma = 0.45
-    # Kb = 0.05
-    # Ks = 0.05
-    # r = 0.08
-    # T = 1
+    T = params['trade_window_size']
 
     ## Grid Parameters
     R = 1  # space variable (probability in this case) upper limit, p belongs to (0,1)
-    N = 4000  # number of divisions of the time period T
-    M = 800  # number of divisions of the space R
+    N = n  # number of divisions of the time period T
+    M = m  # number of divisions of the space R
     forward_diff = False
     backward_diff = False
 
@@ -85,7 +39,7 @@ def get_thresholds(params):
 
     dt = T / N  # N*dt = T
     dp = R / M  # M*dp = R
-    i_rng = np.arange(1, M)
+    i_rng = np.arange(0, M+1)
 
     p = i_rng * dp
     f_p = (mu1 - mu2) * p + mu2 - 0.5 * sigma ** 2  # f(p) as shown in the paper
@@ -108,15 +62,15 @@ def get_thresholds(params):
         # based on mixed forward and backward difference in space variable
         # for p <= lambda2/(lambda1 + lambda2), use forward difference.
         # for p > lambda2/(lambda1 + lambda2), use backward difference.
-        a = np.where(p <= lambda2/(lambda1 + lambda2), -0.5 * factor1, (-0.5 * factor1) - factor2)
+        a = np.where(p <= lambda2 / (lambda1 + lambda2), -0.5 * factor1, (-0.5 * factor1) - factor2)
         b = np.where(p <= lambda2 / (lambda1 + lambda2), 1 + factor1 - factor2, 1 + factor1 + factor2)
         c = np.where(p <= lambda2 / (lambda1 + lambda2), -0.5 * factor1 + factor2, -0.5 * factor1)
 
     # u0 and u1 at state i and n=0. (or Time = T - n*dt = T)
     # They are arrays of size M-1, even though the space is divided by M creating M+1 divisions.
     # The 0th and last value are not taken into the solution as they correspond to p=0 and p=1 which are not included as in the paper.
-    u0_i_n = np.zeros(M - 1)
-    u1_i_n = np.ones(M - 1) * np.log(1 - Ks)
+    u0_i_n = np.zeros(M + 1)
+    u1_i_n = np.ones(M + 1) * np.log(1 - Ks)
 
     ## Loop for solving the finite difference scheme iteratively starting from the maturity
     for n in range(1, N + 1):
@@ -137,8 +91,8 @@ def get_thresholds(params):
         B1_h_n[-1] = B1_h_n[-1] - c[-1] * u1_end  # adjustment of missing last position element in the scheme for u1
 
         # finding the value of u0 and u1 at time n+1 using TDMA solver.
-        u0_i_n_ = TDMA_solver(a, b, c, B0_h_n)
-        u1_i_n_ = TDMA_solver(a, b, c, B1_h_n)
+        u0_i_n_ = TDMA_Solver.TDMA_solver(a, b, c, B0_h_n)
+        u1_i_n_ = TDMA_Solver.TDMA_solver(a, b, c, B1_h_n)
 
         d0 = (u0_i_n_ - u1_i_n_ + np.log(1 + Kb)) < 0  # free boundary condition for u0 and time n+1
 
@@ -166,26 +120,20 @@ def get_thresholds(params):
         else:
             ps_boundary_arr[n] = p[np.where(d1 == 1)[0][0]]
 
-    # time_arr = np.flip(ttm_arr)
+    if plot:
+        time_arr = np.flip(ttm_arr)
+        plt.figure()
+        plt.plot(time_arr, pb_boundary_arr, time_arr, ps_boundary_arr)
+        plt.legend(['Buy threshold', 'Sell threshold'])
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.0])
+        # tick_values = np.arange(0.85, 1.05, 0.05)
+        # plt.yticks(tick_values)
+        plt.title('Optimal Buy and Sell Boundaries')
+        plt.ylabel('p')
+        plt.xlabel('t')
+        plt.show()
 
-    # plt.figure()
-    # plt.plot(time_arr, pb_boundary_arr, time_arr, ps_boundary_arr)
-    # plt.legend(['Buy threshold', 'Sell threshold'])
-    # plt.xlim([0.0, 1.0])
-    # plt.ylim([0.00, 1.00])
-    # # tick_values = np.arange(0.85, 1.05, 0.05)
-    # # plt.yticks(tick_values)
-    # plt.title('Optimal Buy and Sell Boundaries')
-    # plt.ylabel('p')
-    # plt.xlabel('t')
-    # plt.show()
-
-
-    # print(len(time_arr))
-
-    # return mode(pb_boundary_arr).mode[0][0], mode(ps_boundary_arr).mode[0][0]
-    # return np.median(pb_boundary_arr),np.median(ps_boundary_arr)
-    # return pb_boundary_arr[120][0], ps_boundary_arr[120][0]
     return pb_boundary_arr[-1][0], ps_boundary_arr[-1][0]
 
 
@@ -196,6 +144,7 @@ if __name__ == "__main__":
               'mu2': -0.3639727373977152,
               'sigma': 0.20062754510614522,
               'K': 0.001,
-              'rho': 0.03374543103159356}
+              'rho': 0.03374543103159356,
+              'trade_window_size': 1}
 
-    print(get_thresholds(params))
+    print(get_thresholds(params, plot=True))
