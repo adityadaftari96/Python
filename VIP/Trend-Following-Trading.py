@@ -21,7 +21,7 @@ from Misc import PortfolioAnalytics
 from bokeh.plotting import figure, show
 from bokeh.plotting import figure, output_file, save
 from bokeh.models import ColumnDataSource, HoverTool
-from bokeh.models import LinearAxis, Range1d
+from bokeh.models import LinearAxis, Range1d, Span
 from bokeh.models.layouts import Tabs, TabPanel
 from bokeh.models.widgets import PreText
 
@@ -132,6 +132,10 @@ def plot_strategy_performance(strategy_df, path, output_suffix, fig_1, config_de
     strat = fig_2.line(x='date', y='StrategyCumReturn', color="grey", line_width=1, source=source, legend_label="Strategy Cumulative Return", y_range_name="secondary")
     fig_2.line(x='date', y='Strategy(Flat)', color="red", line_width=1, source=source, legend_label="Strategy Cumulative Return", y_range_name="secondary")
     fig_2.line(x='date', y='Strategy(Long)', color="green", line_width=1, source=source, legend_label="Strategy Cumulative Return", y_range_name="secondary")
+
+    # add vertical line on plot to follow mouse
+    # vline = Span(dimension='height', line_color='black', line_dash='dashed', line_width=2)
+    # fig_2.add_layout(vline)
 
     # Add the hover tool with the specified tooltips and mode='vline'
     fig_2.add_tools(HoverTool(

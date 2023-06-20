@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import DataDownload
 from dateutil.relativedelta import relativedelta
-from bokeh.plotting import figure, output_file, save
+from bokeh.plotting import figure, output_file, save, show
 from bokeh.models import ColumnDataSource, HoverTool
 
 
@@ -49,16 +49,18 @@ def identify_regimes(data_df, thresh_bull, thresh_bear):
         close_price = close_prices[close_prices.index == date][0]
 
         if cum_ret_next <= thresh_bear:
+            if bull or bear == bull:
+                regime_switch_dates_list.append(peak_date)
             bear = True
             bull = False
-            regime_switch_dates_list.append(peak_date)
             trough_date = date
             trough = close_price
             cum_ret_next = 1  # reset next regime cumulative return if trough or peak is found
         elif cum_ret_next >= thresh_bull:
+            if bear or bear == bull:
+                regime_switch_dates_list.append(trough_date)
             bear = False
             bull = True
-            regime_switch_dates_list.append(trough_date)
             peak_date = date
             peak = close_price
             cum_ret_next = 1  # reset next regime cumulative return if trough or peak is found
@@ -144,6 +146,7 @@ def plot_regimes(data_df, regime_df, path):
     fig.segment(bear_periods, y_start, bear_periods, y_end, line_color="red", line_width=1, line_dash="dashed")
 
     # save the results to a file
+    # show(fig)
     # save(fig)
     return fig
 
@@ -179,7 +182,8 @@ def compute_window_parameters(data_df, regime_df, k, param_window_size, trade_wi
             regime_window_df['Regime'] = 1 if perc_move > 0 else 0
         elif regime_window_df['WindowEnd'].iloc[0] > window_start:
             # add another regime from start of current window to the first recorded regime
-            regime_window_df.loc[0, 'WindowStart'] = window_start
+            first_window_start = regime_df.loc[regime_df['Top/Bottom'] <= regime_window_df['WindowEnd'].iloc[0]]['Top/Bottom'].iloc[-2]
+            regime_window_df.loc[0, 'WindowStart'] = first_window_start
             temp_prices = close_prices.loc[(close_prices.index >= window_start) & (close_prices.index <= regime_window_df['WindowEnd'].iloc[0])]
             perc_move = -1 + (temp_prices.iloc[-1] / temp_prices.iloc[0])
             regime_window_df.loc[0, 'Regime'] = 1 if perc_move > 0 else 0
@@ -188,11 +192,12 @@ def compute_window_parameters(data_df, regime_df, k, param_window_size, trade_wi
             # So delete first row.
             regime_window_df = regime_window_df.iloc[1:].reset_index(drop=True)
 
-        if regime_window_df['WindowEnd'].iloc[-1] < window_end:
-            regime = abs(regime_window_df['Regime'].iloc[-1] - 1)  # opposite of last regime in regime_df
-            temp_dict = {'WindowStart': [regime_window_df['WindowEnd'].iloc[-1]], 'WindowEnd': [window_end], 'Regime': [regime]}
-            temp_df = pd.DataFrame.from_dict(temp_dict)
-            regime_window_df = pd.concat([regime_window_df, temp_df], axis=0)
+        # commenting below code to not include last regime in parameter estimation window
+        # if regime_window_df['WindowEnd'].iloc[-1] < window_end:
+            # regime = abs(regime_window_df['Regime'].iloc[-1] - 1)  # opposite of last regime in regime_df
+            # temp_dict = {'WindowStart': [regime_window_df['WindowEnd'].iloc[-1]], 'WindowEnd': [window_end], 'Regime': [regime]}
+            # temp_df = pd.DataFrame.from_dict(temp_dict)
+            # regime_window_df = pd.concat([regime_window_df, temp_df], axis=0)
 
         regime_window_df['Mean'] = regime_window_df.apply(lambda x: returns[(returns.index > x['WindowStart']) & (returns.index <= x['WindowEnd'])].mean(), axis=1)
         regime_window_df['Duration'] = regime_window_df.apply(lambda x: returns[(returns.index > x['WindowStart']) & (returns.index <= x['WindowEnd'])].count(), axis=1)
