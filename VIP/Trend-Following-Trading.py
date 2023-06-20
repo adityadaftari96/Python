@@ -178,12 +178,13 @@ if __name__ == "__main__":
     print('start')
 
     base_folder = "/Users/adityadaftari/Library/CloudStorage/OneDrive-nyu.edu/Documents/NYU MFE/DeepAlpha/results/"
-    version = 2.1
+    version = 2.3
     output_suffix = "config_{:.1f}".format(version)
 
     # Period for parameter estimation with start and end date included
     start_date = datetime(1962, 1, 3)
-    end_date = datetime(2011, 12, 31)
+    # end_date = datetime(2011, 12, 31)
+    end_date = datetime(2023, 5, 30)
 
     # hyperparameters
     thresh_bull = 0.2

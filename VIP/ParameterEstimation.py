@@ -211,8 +211,8 @@ def compute_window_parameters(data_df, regime_df, k, param_window_size, trade_wi
         bull_df = regime_window_df.loc[regime_window_df['Regime'] == 1, :]
         bear_df = regime_window_df.loc[regime_window_df['Regime'] == 0, :]
 
-        params['sigma1'] = bull_df['Stdev'].mean() * np.sqrt(252)
-        params['sigma2'] = bear_df['Stdev'].mean() * np.sqrt(252)
+        params['sigma1'] = bull_df['Stdev'].mean() * np.sqrt(252) if not bull_df.empty else 0.0
+        params['sigma2'] = bear_df['Stdev'].mean() * np.sqrt(252) if not bear_df.empty else 0.0
         params['lambda1'] = (252 / bull_df['Duration']).mean()
         params['lambda2'] = (252 / bear_df['Duration']).mean()
 
@@ -221,7 +221,12 @@ def compute_window_parameters(data_df, regime_df, k, param_window_size, trade_wi
             # sigma = average of sigma1 and sigma2
             params['mu1'] = bull_df['Mean'].mean() * 252
             params['mu2'] = bear_df['Mean'].mean() * 252
-            params['sigma'] = (params['sigma1'] + params['sigma2']) / 2
+            if np.isnan(params['sigma1']):
+                params['sigma'] = params['sigma2']
+            elif np.isnan(params['sigma2']):
+                params['sigma'] = params['sigma1']
+            else:
+                params['sigma'] = (params['sigma1'] + params['sigma2']) / 2
         elif method == 'compound':
             # takes % move for each bull period, annualizes it and takes average to get mu1. Similar calculation for mu2.
             # sigma is computed as annualized std dev of all daily returns in current window
@@ -229,6 +234,7 @@ def compute_window_parameters(data_df, regime_df, k, param_window_size, trade_wi
             params['mu2'] = (((1 + bear_df['% Move']) ** (252 / bear_df['Duration'])) - 1).mean()
             params['sigma'] = returns[(returns.index > window_start) & (returns.index <= window_end)].std() * np.sqrt(252)
 
+        # NaN check: Replace NaN with 0, then take EWA so effective value will be (1-alpha)*(old value).
         # use exponential weighting to update parameters
         # TODO: try different weightings
         if not params_old:
@@ -236,6 +242,7 @@ def compute_window_parameters(data_df, regime_df, k, param_window_size, trade_wi
         update_params_list = ['mu1', 'mu2', 'lambda1', 'lambda2']
         alpha = 1 / 3
         for key in update_params_list:
+            params[key] = params[key] if not np.isnan(params[key]) else 0.0
             params[key] = ((1 - alpha) * params_old[key]) + (alpha * params[key])
         params_old = params
 
