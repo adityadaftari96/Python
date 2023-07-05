@@ -24,6 +24,9 @@ from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.models import LinearAxis, Range1d, Span
 from bokeh.models.layouts import Tabs, TabPanel
 from bokeh.models.widgets import PreText
+from bokeh.models import CustomJS, CrosshairTool
+# from bokeh.layouts import gridplot
+import numpy as np
 
 
 def p_t1(pt, params, S0, S1):
@@ -91,6 +94,14 @@ def run_backtest(data_df, params_df, hjb_m, hjb_n):
     return strategy_df
 
 
+def addLinkedCrosshairs(plot, dim):
+    crosshair = CrosshairTool(dimensions=dim)
+    plot.add_tools(crosshair)
+    args = {'cross': crosshair, 'fig': plot}
+    plot.js_on_event('mousemove', CustomJS(args=args))
+    plot.js_on_event('mouseleave', CustomJS(args=args))
+
+
 def plot_strategy_performance(strategy_df, path, output_suffix, fig_1, config_desc):
 
     mask = strategy_df['Position'] == 1
@@ -133,10 +144,6 @@ def plot_strategy_performance(strategy_df, path, output_suffix, fig_1, config_de
     fig_2.line(x='date', y='Strategy(Flat)', color="red", line_width=1, source=source, legend_label="Strategy Cumulative Return", y_range_name="secondary")
     fig_2.line(x='date', y='Strategy(Long)', color="green", line_width=1, source=source, legend_label="Strategy Cumulative Return", y_range_name="secondary")
 
-    # add vertical line on plot to follow mouse
-    # vline = Span(dimension='height', line_color='black', line_dash='dashed', line_width=2)
-    # fig_2.add_layout(vline)
-
     # Add the hover tool with the specified tooltips and mode='vline'
     fig_2.add_tools(HoverTool(
         tooltips=[
@@ -161,8 +168,10 @@ def plot_strategy_performance(strategy_df, path, output_suffix, fig_1, config_de
 
     # show(fig_2)
 
-    config_txt = PreText(text=config_desc)
+    addLinkedCrosshairs(fig_1, dim='both')
+    addLinkedCrosshairs(fig_2, dim='height')
 
+    config_txt = PreText(text=config_desc)
     # Create the panels for each plot
     panel1 = TabPanel(child=fig_1, title="Regimes")
     panel2 = TabPanel(child=fig_2, title="Strategy results")
@@ -182,27 +191,41 @@ if __name__ == "__main__":
     print('start')
 
     base_folder = "/Users/adityadaftari/Library/CloudStorage/OneDrive-nyu.edu/Documents/NYU MFE/DeepAlpha/results/"
-    version = 2.3
+    version = 6.2
     output_suffix = "config_{:.1f}".format(version)
 
     # Period for parameter estimation with start and end date included
     start_date = datetime(1962, 1, 3)
+    # start_date = datetime(2000, 1, 1)
+    # start_date = datetime(2015, 1, 1)
     # end_date = datetime(2011, 12, 31)
     end_date = datetime(2023, 5, 30)
 
     # hyperparameters
-    thresh_bull = 0.2
-    thresh_bear = 0.2
+    thresholds = [
+        # start date, bear threshold, bull threshold
+        [start_date, 0.20, 0.20],
+        # [start_date, 0.60, 0.60],
+        # [datetime(2017, 11, 9), 0.6, 0.6],
+        [datetime(2010, 1, 1), 0.18, 0.20],
+        # [datetime(2020, 1, 1), 0.17, 0.23],
+    ]
     param_window_size = 10
     trade_window_size = 1
     K = 0.001
     param_method = 'compound'
     HJB_M = 800
-    HJB_N = 4000
+    HJB_N = 800
+    alpha = 0.95
 
     start_time = time()
     # get price history for given ticker in given period
-    asset_ticker = "^GSPC"
+    asset_name = "S&P500"
+    # asset_name = "Bitcoin"
+    # asset_name = "Etherium"
+    # asset_name = "BNB"
+    asset_ticker_dict = {'S&P500': '^GSPC', 'Bitcoin': 'BTC-USD', 'Etherium': 'ETH-USD', 'BNB': 'BNB-USD'}
+    asset_ticker = asset_ticker_dict[asset_name]
     rho_ticker = "^TNX"
     price_df = DataDownload.fetch_price_data(ticker=asset_ticker, start_date=start_date, end_date=end_date, force_download=True)
     rho_df = DataDownload.fetch_price_data(ticker=rho_ticker, start_date=start_date, end_date=end_date, force_download=True)
@@ -214,7 +237,7 @@ if __name__ == "__main__":
     data_df = data_df.fillna(method='pad')
 
     # Identify bull and bear regimes
-    regime_df = ParameterEstimation.identify_regimes(data_df=data_df, thresh_bull=thresh_bull, thresh_bear=thresh_bear)
+    regime_df = ParameterEstimation.identify_regimes(data_df=data_df, threshold_list=thresholds)
     print()
     print(regime_df)
 
@@ -224,12 +247,14 @@ if __name__ == "__main__":
     # compute parameters based on identified regimes and given window length in years
     params_df = ParameterEstimation.compute_window_parameters(data_df=data_df, regime_df=regime_df, k=K,
                                                               param_window_size=param_window_size,
-                                                              trade_window_size=trade_window_size, method=param_method)
+                                                              trade_window_size=trade_window_size, method=param_method,
+                                                              alpha=alpha)
+    params_df.to_excel(base_folder+"parameters_config_{:.1f}.xlsx".format(version))
     print()
     print(params_df.head())
 
     # run backtest
-    strategy_df = run_backtest(data_df=data_df, params_df=params_df, hjb_m=HJB_M, hjb_n=HJB_M)
+    strategy_df = run_backtest(data_df=data_df, params_df=params_df, hjb_m=HJB_M, hjb_n=HJB_N)
     print()
     print(strategy_df.head())
 
@@ -244,26 +269,33 @@ if __name__ == "__main__":
                                                                pf_cum_ret=strategy_df['StrategyCumReturn'],
                                                                benchmark_ret=strategy_df['AssetReturnsCC'],
                                                                benchmark_cum_ret=strategy_df['BenchmarkCumReturn'],
-                                                               positions=strategy_df['Position'])
+                                                               positions=strategy_df['Position'], benchmark_name=asset_name)
 
     config_desc = """
         start_date = {start_date} \n
         end_date = {end_date} \n
-        thresh_bull = {thresh_bull} \n
-        thresh_bear = {thresh_bear} \n
+        threshold_list = {threshold_list}
         param_window_size = {param_window_size} \n
         trade_window_size = {trade_window_size} \n
         param_method = {param_method} \n
         K = {K} \n
         HJB_M = {m} \n
         HJB_N = {n} \n
+        alpha = {alpha} \n
+        *Change Log*
+        First regime is taken from start of regime even if it is before the window start.
+        Last regime is skipped as it is not over.
+        Added sigma in EWA list.
+        Taking duration weighted mean for mu1 and mu2 for P(t) instead of simple average.
+        Taking simple mean for mu1 and mu2 for HJB solver instead of simple average.
+        *** \n
         {time_str} \n\n\n
         ---------------
         Results Summary 
         ---------------\n\n{res_df}
-        """.format(start_date=start_date.date(), end_date=end_date.date(), thresh_bull=thresh_bull, thresh_bear=thresh_bear,
+        """.format(start_date=start_date.date(), end_date=end_date.date(), threshold_list=thresholds,
                    param_window_size=param_window_size, trade_window_size=trade_window_size, param_method=param_method,
-                   K=K, m=HJB_M, n=HJB_N, time_str=time_str, res_df=res_df.to_string())
+                   K=K, m=HJB_M, n=HJB_N, time_str=time_str, res_df=res_df.to_string(), alpha=alpha)
 
     # Plot
     plot_strategy_performance(strategy_df=strategy_df, path=base_folder, output_suffix=output_suffix, fig_1=fig_1, config_desc=config_desc)

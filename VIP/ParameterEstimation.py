@@ -20,11 +20,31 @@ import DataDownload
 from dateutil.relativedelta import relativedelta
 from bokeh.plotting import figure, output_file, save, show
 from bokeh.models import ColumnDataSource, HoverTool
+from bokeh.models import LinearAxis, Range1d, Span
 
 
-def identify_regimes(data_df, thresh_bull, thresh_bear):
-    thresh_bull = (1 + thresh_bull)
-    thresh_bear = (1 - thresh_bear)
+def calibrate_regime_thresholds_EQ(period, threshold_list):
+    columns = ['Date', 'BearThreshold', 'BullThreshold']
+    reg_thresh_df = pd.DataFrame(threshold_list, columns=columns)
+    reg_thresh_df = reg_thresh_df.set_index(['Date'])
+    index = pd.bdate_range(start=reg_thresh_df.index[0], end=period[1])
+    reg_thresh_df = reg_thresh_df.reindex(index)
+    reg_thresh_df = reg_thresh_df.fillna(method='ffill')
+    reg_thresh_df = reg_thresh_df.loc[reg_thresh_df.index >= period[0]]
+    return reg_thresh_df
+
+
+def calibrate_regime_thresholds_Crypto(period, threshold_list, asset_prices):
+    columns = ['Date', 'BearThreshold', 'BullThreshold']
+    reg_thresh_df = pd.DataFrame(threshold_list, columns=columns)
+    reg_thresh_df = reg_thresh_df.set_index(['Date'])
+    reg_thresh_df = reg_thresh_df.reindex(asset_prices.index)
+    reg_thresh_df = reg_thresh_df.fillna(method='ffill')
+    reg_thresh_df = reg_thresh_df.loc[reg_thresh_df.index >= period[0]]
+    return reg_thresh_df
+
+
+def identify_regimes(data_df, threshold_list):
 
     close_prices = data_df['Close']
     returns = data_df['AssetReturnsCC'].dropna()
@@ -43,10 +63,15 @@ def identify_regimes(data_df, thresh_bull, thresh_bear):
     bear = False
     bull = False
 
+    regime_thresholds_df = calibrate_regime_thresholds_EQ(period=(returns.index[0], returns.index[-1]), threshold_list=threshold_list)
+    # regime_thresholds_df = calibrate_regime_thresholds_Crypto(period=(returns.index[0], returns.index[-1]), threshold_list=threshold_list, asset_prices=close_prices)
+
     for date in returns.index:
-        # cum_ret_curr = cum_ret_curr * (1 + returns[returns.index == date][0])
         cum_ret_next = cum_ret_next * (1 + returns[returns.index == date][0])
         close_price = close_prices[close_prices.index == date][0]
+
+        thresh_bull = (1 + regime_thresholds_df.loc[date, 'BullThreshold'])
+        thresh_bear = (1 - regime_thresholds_df.loc[date, 'BearThreshold'])
 
         if cum_ret_next <= thresh_bear:
             if bull or bear == bull:
@@ -109,17 +134,26 @@ def plot_regimes(data_df, regime_df, path):
     source = ColumnDataSource(data={
         'date': np.array(close_prices.index, dtype=np.datetime64),
         'index': close_prices.values,
+        'returns': 100*data_df['AssetReturnsCC'].values,
     })
 
     fig.xaxis.axis_label = 'Date'
     fig.yaxis.axis_label = 'Index'
 
+    # secondary y-axis
+    y_min = 100*min(data_df['AssetReturnsCC'].dropna().values)
+    y_max = 100*max(data_df['AssetReturnsCC'].dropna().values)
+    fig.extra_y_ranges['secondary'] = Range1d(y_min, y_max)
+    fig.add_layout(LinearAxis(y_range_name="secondary", axis_label='Daily Returns'), 'right')
+
     # add a renderer
-    fig.line(x='date', y='index', line_width=1, color='#ebbd5b', source=source)
+    index = fig.line(x='date', y='index', line_width=1, color='orange', source=source, legend_label="Index Level")
+    fig.line(x='date', y='returns', line_width=1, color='blue', source=source, legend_label="Daily Return (%)", y_range_name="secondary")
     fig.add_tools(HoverTool(
         tooltips=[
             ('date', '@date{%F}'),
             ('index', '@index{0.2f}'),  # use @{ } for field names with spaces
+            ('returns', '@returns{0.4f} %'),  # use @{ } for field names with spaces
         ],
 
         formatters={
@@ -129,7 +163,8 @@ def plot_regimes(data_df, regime_df, path):
         },
 
         # display a tooltip whenever the cursor is vertically in line with a glyph
-        mode='vline'
+        mode='vline',
+        renderers=[index]
     ))
 
     # Define the y-coordinates for the start and end points of the lines
@@ -145,13 +180,15 @@ def plot_regimes(data_df, regime_df, path):
     # Add the vertical lines to the plot using the segment glyph
     fig.segment(bear_periods, y_start, bear_periods, y_end, line_color="red", line_width=1, line_dash="dashed")
 
+    fig.legend.click_policy = "hide"
+
     # save the results to a file
     # show(fig)
     # save(fig)
     return fig
 
 
-def compute_window_parameters(data_df, regime_df, k, param_window_size, trade_window_size, method='average'):
+def compute_window_parameters(data_df, regime_df, k, param_window_size, trade_window_size, alpha, method='average'):
     close_prices = data_df['Close']
     close_prices = close_prices.reindex(pd.bdate_range(start=close_prices.index[0], end=close_prices.index[-1]))
     close_prices = close_prices.fillna(method='pad')
@@ -235,17 +272,19 @@ def compute_window_parameters(data_df, regime_df, k, param_window_size, trade_wi
         elif method == 'compound':
             # takes % move for each bull period, annualizes it and takes average to get mu1. Similar calculation for mu2.
             # sigma is computed as annualized std dev of all daily returns in current window
-            params['mu1'] = (((1 + bull_df['% Move']) ** (252 / bull_df['Duration'])) - 1).mean()
-            params['mu2'] = (((1 + bear_df['% Move']) ** (252 / bear_df['Duration'])) - 1).mean()
+            params['HJBmu1'] = (((1 + bull_df['% Move']) ** (252 / bull_df['Duration'])) - 1).mean()
+            params['HJBmu2'] = (((1 + bear_df['% Move']) ** (252 / bear_df['Duration'])) - 1).mean()
+            params['mu1'] = ((((1 + bull_df['% Move']) ** (252 / bull_df['Duration'])) - 1) * bull_df['Duration']).sum() / bull_df['Duration'].sum() if len(bull_df) > 0 else 0
+            params['mu2'] = ((((1 + bear_df['% Move']) ** (252 / bear_df['Duration'])) - 1) * bear_df['Duration']).sum() / bear_df['Duration'].sum() if len(bear_df) > 0 else 0
             params['sigma'] = returns[(returns.index > window_start) & (returns.index <= window_end)].std() * np.sqrt(252)
 
         # NaN check: Replace NaN with 0, then take EWA so effective value will be (1-alpha)*(old value).
         # use exponential weighting to update parameters
-        # TODO: try different weightings
         if not params_old:
             params_old = params
-        update_params_list = ['mu1', 'mu2', 'lambda1', 'lambda2']
-        alpha = 1 / 3
+        update_params_list = ['mu1', 'mu2', 'lambda1', 'lambda2', 'sigma', 'HJBmu1', 'HJBmu2']
+        # N = 5
+        # alpha = 2 / N
         for key in update_params_list:
             params[key] = params[key] if not np.isnan(params[key]) else 0.0
             params[key] = ((1 - alpha) * params_old[key]) + (alpha * params[key])
@@ -309,7 +348,8 @@ if __name__ == "__main__":
 
     # compute parameters based on identified regimes and given window length in years
     params_df = compute_window_parameters(data_df=data_df, regime_df=regime_df, k=K,
-                                          param_window_size=param_window_size, trade_window_size=trade_window_size)
+                                          param_window_size=param_window_size, trade_window_size=trade_window_size,
+                                          alpha=0.95)
     print()
     print(params_df)
 

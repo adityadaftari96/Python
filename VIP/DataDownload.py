@@ -12,11 +12,11 @@ def fetch_price_data(ticker, start_date, end_date, force_download=False):
                 df = pickle.load(handle)
             df = df.loc[(df.index >= start_date) & (df.index <= end_date), :]
         except FileNotFoundError:
-            df = yf.download(tickers=[ticker], start=start_date, end=end_date + BDay(1))
+            df = yf.download(tickers=ticker, start=start_date, end=end_date + BDay(1))
             with open(path, 'wb') as handle:
                 pickle.dump(df, handle)
     else:
-        df = yf.download(tickers=[ticker], start=start_date, end=end_date + BDay(1))
+        df = yf.download(tickers=ticker, start=start_date, end=end_date + BDay(1))
         with open(path, 'wb') as handle:
             pickle.dump(df, handle)
 

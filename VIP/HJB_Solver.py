@@ -13,8 +13,8 @@ def get_thresholds(params, m, n, plot=False):
     ## Market Parameters
     lambda1 = params['lambda1']
     lambda2 = params['lambda2']
-    mu1 = params['mu1']
-    mu2 = params['mu2']
+    mu1 = params['HJBmu1']
+    mu2 = params['HJBmu2']
     sigma = params['sigma']
     Kb = params['K']
     Ks = params['K']
