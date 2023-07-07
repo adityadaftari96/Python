@@ -21,6 +21,7 @@ from dateutil.relativedelta import relativedelta
 from bokeh.plotting import figure, output_file, save, show
 from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.models import LinearAxis, Range1d, Span
+import ruptures as rpt
 
 
 def calibrate_regime_thresholds_EQ(period, threshold_list):
@@ -121,12 +122,44 @@ def identify_regimes(data_df, threshold_list):
     return regime_df
 
 
+def identify_regimes_cpd(data_df, window_size, model, pen_beta, min_size):
+    """
+    Identify regimes using change point detection python library ruptures
+    """
+    close_prices = data_df['Close']
+    returns = data_df['AssetReturnsCC'].dropna()
+
+    window_start_date = returns.index[0]
+    window_end_date = window_start_date + relativedelta(years=window_size)
+    regime_switch_dates_list = [close_prices.index[0]]
+
+    i = 0
+    while window_end_date < returns.index[-1]:
+        window_returns = returns.loc[(returns.index >= window_start_date) & (returns.index <= window_end_date)]
+        algo = rpt.Pelt(model=model, min_size=min_size).fit(np.array(window_returns))
+        break_points = algo.predict(pen=pen_beta)
+        break_points = [i + bp for bp in break_points[:-1]]
+        regime_switch_dates_list.extend(returns.index[break_points].tolist())
+        window_start_date = window_start_date + relativedelta(years=window_size)
+        window_end_date = window_end_date + relativedelta(years=window_size)
+        i += len(window_returns)
+
+    regime_df = pd.DataFrame(data=regime_switch_dates_list, columns=['Top/Bottom'])
+    regime_df['TB_shifted'] = regime_df['Top/Bottom'].shift(1)
+    regime_df['Index'] = regime_df.apply(lambda x: close_prices.loc[x['Top/Bottom']], axis=1)
+    regime_df['% Move'] = regime_df['Index'].pct_change()
+    regime_df['Regime'] = np.where(regime_df['% Move'] > 0, 1, 0)
+    regime_df['Mean'] = regime_df.apply(lambda x: returns[(returns.index > x['TB_shifted']) & (returns.index <= x['Top/Bottom'])].mean(), axis=1)
+    regime_df['Stdev'] = regime_df.apply(lambda x: returns[(returns.index > x['TB_shifted']) & (returns.index <= x['Top/Bottom'])].std(), axis=1)
+    regime_df['Duration'] = regime_df.apply(lambda x: returns[(returns.index > x['TB_shifted']) & (returns.index <= x['Top/Bottom'])].count(), axis=1)
+    regime_df = regime_df.drop(columns=['TB_shifted'])
+    return regime_df
+
+
 def plot_regimes(data_df, regime_df, path):
     close_prices = data_df['Close']
     bull_periods = regime_df.loc[regime_df['% Move'] > 0, 'Top/Bottom']
     bear_periods = regime_df.loc[regime_df['% Move'] < 0, 'Top/Bottom']
-
-    # output_file(filename=path + "regimes.html", title="Regimes")
 
     # create a new plot with a specific size
     fig = figure(width=1500, height=800, x_axis_type='datetime')
@@ -184,6 +217,7 @@ def plot_regimes(data_df, regime_df, path):
 
     # save the results to a file
     # show(fig)
+    # output_file(filename=path + "regimes.html", title="Regimes")
     # save(fig)
     return fig
 
