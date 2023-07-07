@@ -10,7 +10,7 @@ if __name__ == "__main__":
     start_time = time()
 
     base_folder = "/Users/adityadaftari/Library/CloudStorage/OneDrive-nyu.edu/Documents/NYU MFE/DeepAlpha/results/"
-    version = 6.6
+    version = 6.8
     output_suffix = "config_{:.1f}".format(version)
 
     # Period for parameter estimation with start and end date included
@@ -35,8 +35,12 @@ if __name__ == "__main__":
 
     # for change point detection using ruptures, use below hyperparameters
     model = "l2"
-    pen_beta = 0.0001
-    min_size = 5
+    pen_beta = [
+        # start date, beta
+        [start_date, 0.0001],
+        [datetime(2010, 1, 1), 0.00015],
+    ]
+    min_size = 21
     # end of ruptures hyperparameters
 
     param_window_size = 10
@@ -69,7 +73,7 @@ if __name__ == "__main__":
     # Identify bull and bear regimes
     # regime_df = ParameterEstimation.identify_regimes(data_df=data_df, threshold_list=thresholds)
     regime_df = ParameterEstimation.identify_regimes_cpd(data_df=data_df, window_size=trade_window_size, model=model,
-                                                         pen_beta=pen_beta, min_size=min_size)
+                                                         beta_list=pen_beta, min_size=min_size)
     print()
     print(regime_df)
 
@@ -123,6 +127,7 @@ if __name__ == "__main__":
         Using change point detection for regime identification
         Change point detection:
         min_size = {min_size}
+        penalty beta = {beta}
         *** \n
         {time_str} \n\n\n
         ---------------
@@ -130,7 +135,8 @@ if __name__ == "__main__":
         ---------------\n\n{res_df}
         """.format(start_date=start_date.date(), end_date=end_date.date(), threshold_list=thresholds,
                    param_window_size=param_window_size, trade_window_size=trade_window_size, param_method=param_method,
-                   K=K, m=HJB_M, n=HJB_N, time_str=time_str, res_df=res_df.to_string(), alpha=alpha, min_size=min_size)
+                   K=K, m=HJB_M, n=HJB_N, time_str=time_str, res_df=res_df.to_string(), alpha=alpha, min_size=min_size,
+                   beta=pen_beta)
 
     # Plot
     plot_strategy_performance(strategy_df=strategy_df, path=base_folder, output_suffix=output_suffix, fig_1=fig_1, config_desc=config_desc)

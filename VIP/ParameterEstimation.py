@@ -36,10 +36,24 @@ def calibrate_regime_thresholds_EQ(period, threshold_list):
 
 
 def calibrate_regime_thresholds_Crypto(period, threshold_list, asset_prices):
+    """
+    crypto is open all days of the week, so it is different from EQ
+    """
     columns = ['Date', 'BearThreshold', 'BullThreshold']
     reg_thresh_df = pd.DataFrame(threshold_list, columns=columns)
     reg_thresh_df = reg_thresh_df.set_index(['Date'])
     reg_thresh_df = reg_thresh_df.reindex(asset_prices.index)
+    reg_thresh_df = reg_thresh_df.fillna(method='ffill')
+    reg_thresh_df = reg_thresh_df.loc[reg_thresh_df.index >= period[0]]
+    return reg_thresh_df
+
+
+def penalty_betas(period, beta_list):
+    columns = ['Date', 'Beta']
+    reg_thresh_df = pd.DataFrame(beta_list, columns=columns)
+    reg_thresh_df = reg_thresh_df.set_index(['Date'])
+    index = pd.date_range(start=reg_thresh_df.index[0], end=period[1], freq='D')
+    reg_thresh_df = reg_thresh_df.reindex(index)
     reg_thresh_df = reg_thresh_df.fillna(method='ffill')
     reg_thresh_df = reg_thresh_df.loc[reg_thresh_df.index >= period[0]]
     return reg_thresh_df
@@ -122,7 +136,7 @@ def identify_regimes(data_df, threshold_list):
     return regime_df
 
 
-def identify_regimes_cpd(data_df, window_size, model, pen_beta, min_size):
+def identify_regimes_cpd(data_df, window_size, model, beta_list, min_size):
     """
     Identify regimes using change point detection python library ruptures
     """
@@ -133,10 +147,13 @@ def identify_regimes_cpd(data_df, window_size, model, pen_beta, min_size):
     window_end_date = window_start_date + relativedelta(years=window_size)
     regime_switch_dates_list = [close_prices.index[0]]
 
+    betas = penalty_betas(period=(returns.index[0], returns.index[-1]), beta_list=beta_list)
+
     i = 0
     while window_end_date < returns.index[-1]:
         window_returns = returns.loc[(returns.index >= window_start_date) & (returns.index <= window_end_date)]
         algo = rpt.Pelt(model=model, min_size=min_size).fit(np.array(window_returns))
+        pen_beta = betas.loc[window_start_date][0]
         break_points = algo.predict(pen=pen_beta)
         break_points = [i + bp for bp in break_points[:-1]]
         regime_switch_dates_list.extend(returns.index[break_points].tolist())
